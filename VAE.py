@@ -62,11 +62,12 @@ class VAE(nn.Module):
     def model(self, x):
         pyro.module("decoder", self.decoder)
         with pyro.plate("data", x.shape[0]):
-            z_loc   = x.new_zeros(torch.Size((x.shape[0], self.z_dim)))
-            z_scale = x.new_ones(torch.Size((x.shape[0], self.z_dim)))
-            z       = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
-            loc_img = self.decoder.forward(z)
-            pyro.sample("obs", dist.Normal(loc_img, torch.tensor(0.1)).to_event(1), obs=x.reshape(-1, 784))
+            z_loc       = x.new_zeros(torch.Size((x.shape[0], self.z_dim)))
+            z_scale     = x.new_ones(torch.Size((x.shape[0], self.z_dim)))
+            z           = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
+            loc_img     = self.decoder.forward(z)
+            noise_level = 0.1 * x.new_ones(1)
+            pyro.sample("obs", dist.Normal(loc_img, noise_level).to_event(1), obs=x.reshape(-1, 784))
             # pyro.sample("obs", dist.Bernoulli(loc_img).to_event(1), obs=x.reshape(-1, 784))
 
     def guide(self, x):
