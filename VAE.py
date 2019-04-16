@@ -84,6 +84,8 @@ class VAE(nn.Module):
 def train(svi, train_loader, use_cuda=False):
     epoch_loss = 0.
     for x, _ in train_loader:
+        if use_cuda:
+            x = x.cuda()
         loss        = svi.step(x)
         epoch_loss += loss
     normalizer_train       = len(train_loader.dataset)
@@ -93,19 +95,21 @@ def train(svi, train_loader, use_cuda=False):
 def evaluate(svi, test_loader, use_cuda=False):
     test_loss = 0.
     for x, _ in test_loader:
+        if use_cuda:
+            x = x.cuda()
         test_loss += svi.evaluate_loss(x)
     normalizer_test = len(test_loader.dataset)
     total_epoch_loss_test = test_loss / normalizer_test
     return total_epoch_loss_test
 
-use_cuda    = False
+use_cuda    = True
 pyro.clear_param_store()
-vae         = VAE()
+vae         = VAE(use_cuda = use_cuda)
 optimizer   = Adam({"lr": 1e-3})
 svi         = SVI(vae.model, vae.guide, optimizer, loss = Trace_ELBO())
-train_loader, test_loader = setup_data_loaders(use_cuda=use_cuda, batch_size=32)
-print_every = 100
-num_epochs  = 1
+train_loader, test_loader = setup_data_loaders(use_cuda=use_cuda, batch_size=128)
+print_every = 5
+num_epochs  = 100
 
 
 train_elbo = []
