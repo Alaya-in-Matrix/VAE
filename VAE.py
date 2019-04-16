@@ -66,7 +66,8 @@ class VAE(nn.Module):
             z_scale = x.new_ones(torch.Size((x.shape[0], self.z_dim)))
             z       = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
             loc_img = self.decoder.forward(z)
-            pyro.sample("obs", dist.Bernoulli(loc_img).to_event(1), obs=x.reshape(-1, 784))
+            pyro.sample("obs", dist.Normal(loc_img, torch.tensor(0.1)).to_event(1), obs=x.reshape(-1, 784))
+            # pyro.sample("obs", dist.Bernoulli(loc_img).to_event(1), obs=x.reshape(-1, 784))
 
     def guide(self, x):
         pyro.module("encoder", self.encoder)
@@ -102,14 +103,17 @@ def evaluate(svi, test_loader, use_cuda=False):
     total_epoch_loss_test = test_loss / normalizer_test
     return total_epoch_loss_test
 
-use_cuda    = True
+use_cuda    = False
 pyro.clear_param_store()
 vae         = VAE(use_cuda = use_cuda)
 optimizer   = Adam({"lr": 1e-3})
 svi         = SVI(vae.model, vae.guide, optimizer, loss = Trace_ELBO())
 train_loader, test_loader = setup_data_loaders(use_cuda=use_cuda, batch_size=128)
-print_every = 5
-num_epochs  = 100
+print_every = 1
+num_epochs  = 10
+
+print(len(train_loader))
+print(len(test_loader))
 
 
 train_elbo = []
@@ -122,4 +126,4 @@ for epoch in range(num_epochs):
     if epoch % print_every == 0:
         total_epoch_loss_test = evaluate(svi, test_loader, use_cuda=use_cuda)
         test_elbo.append(-total_epoch_loss_test)
-        print("[epoch %03d] average test loss: %.4f" % (epoch, total_epoch_loss_test))
+        print("[epoch %03d]  average test loss: %.4f" % (epoch, total_epoch_loss_test))
