@@ -84,7 +84,10 @@ class VAE(nn.Module):
             pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
 
     def reconstruct_img(self, x):
-        z_loc, z_scale = self.encoder(x)
-        z              = dist.Normal(z_loc, z_scale).sample()
-        loc_img        = self.decoder(z)
-        return loc_img
+        with torch.no_grad():
+            if self.use_cuda:
+                x = x.cuda()
+            z_loc, z_scale = self.encoder(x)
+            z              = dist.Normal(z_loc, z_scale).sample()
+            loc_img        = self.decoder(z)
+        return loc_img.cpu()
