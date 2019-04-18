@@ -42,7 +42,7 @@ class Decoder(nn.Module):
         h3      = F.relu(self.bn3(self.deconv3(h2)))
         h4      = F.relu(self.bn4(self.deconv4(h3)))
         h5      = F.relu(self.deconv5(h4))
-        rec_img = F.interpolate(h5, size = self.img_size)
+        rec_img = F.tanh(F.interpolate(h5, size = self.img_size))
         return rec_img
 
 class Encoder(nn.Module):
