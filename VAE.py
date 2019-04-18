@@ -21,28 +21,27 @@ class Decoder(nn.Module):
         stride      = 2
         padding     = 1
 
-        self.deconv1 = nn.ConvTranspose2d(self.z_dim, 4 * ndf, kernel_size = kernel_size)
-        self.bn1     = nn.BatchNorm2d(4 * ndf)
+        self.deconv1 = nn.ConvTranspose2d(self.z_dim, 8 * ndf, kernel_size = 8)
+        self.bn1     = nn.BatchNorm2d(8 * ndf) # 1024 * 8 * 8
 
-        self.deconv2 = nn.ConvTranspose2d(4 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding = padding)
-        self.bn2     = nn.BatchNorm2d(2 * ndf)
+        self.deconv2 = nn.ConvTranspose2d(8 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding = padding)
+        self.bn2     = nn.BatchNorm2d(4 * ndf) # 512 * 16 * 16
 
-        self.deconv3 = nn.ConvTranspose2d(2 * ndf, 1 * ndf, kernel_size = kernel_size, stride = stride, padding = padding)
-        self.bn3     = nn.BatchNorm2d(1 * ndf)
+        self.deconv3 = nn.ConvTranspose2d(4 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding = padding)
+        self.bn3     = nn.BatchNorm2d(2 * ndf) # 256 * 32 * 32
 
-        self.deconv4 = nn.ConvTranspose2d(1 * ndf, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding)
-        self.bn4     = nn.BatchNorm2d(self.n_channel)
+        self.deconv4 = nn.ConvTranspose2d(2 * ndf, ndf, kernel_size = kernel_size, stride = stride, padding = padding)
+        self.bn4     = nn.BatchNorm2d(ndf) # 128 * 64 * 64
 
-        self.deconv5 = nn.ConvTranspose2d(self.n_channel, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding)
-
+        self.deconv5 = nn.ConvTranspose2d(ndf, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding) # 3 * 128 * 128
 
     def forward(self, z):
         h1      = F.relu(self.bn1(self.deconv1(z.view(-1, self.z_dim, 1, 1))))
         h2      = F.relu(self.bn2(self.deconv2(h1)))
         h3      = F.relu(self.bn3(self.deconv3(h2)))
         h4      = F.relu(self.bn4(self.deconv4(h3)))
-        h5      = F.relu(self.deconv5(h4))
-        rec_img = F.tanh(F.interpolate(h5, size = self.img_size))
+        h5      = self.deconv5(h4)
+        rec_img = torch.tanh(h5)
         return rec_img
 
 class Encoder(nn.Module):
@@ -58,31 +57,31 @@ class Encoder(nn.Module):
         padding     = 1
 
         self.conv1 = nn.Conv2d(self.n_channel, ndf, kernel_size = kernel_size, stride = stride, padding= padding)
-        self.bn1   = nn.BatchNorm2d(ndf)
 
-        self.conv2 = nn.Conv2d(1 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding= padding)
-        self.bn2   = nn.BatchNorm2d(4 * ndf)
+        self.conv2 = nn.Conv2d(1 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding= padding)
+        self.bn2   = nn.BatchNorm2d(2 * ndf)
 
-        self.conv3 = nn.Conv2d(4 * ndf, 16 * ndf, kernel_size = kernel_size, stride = stride, padding= padding)
-        self.bn3   = nn.BatchNorm2d(16 * ndf)
+        self.conv3 = nn.Conv2d(2 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding= padding)
+        self.bn3   = nn.BatchNorm2d(4 * ndf)
 
-        self.conv4 = nn.Conv2d(16 * ndf, self.z_dim, kernel_size = kernel_size, stride = stride, padding= padding)
-        self.bn4   = nn.BatchNorm2d(self.z_dim)
+        self.conv4_1 = nn.Conv2d(4 * ndf, self.z_dim, kernel_size = kernel_size, stride = stride, padding= padding)
+        self.bn4_1   = nn.BatchNorm2d(self.z_dim)
 
-        self.fc1   = nn.Linear(self.z_dim * 14 * 14, self.z_dim)
-        self.fc2_1 = nn.Linear(self.z_dim, self.z_dim)
-        self.fc2_2 = nn.Linear(self.z_dim, self.z_dim)
+        self.conv4_2 = nn.Conv2d(4 * ndf, self.z_dim, kernel_size = kernel_size, stride = stride, padding= padding)
+        self.bn4_2   = nn.BatchNorm2d(self.z_dim)
 
     def forward(self, x):
-        h1 = F.relu(self.bn1(self.conv1(x)))
-        h2 = F.relu(self.bn2(self.conv2(h1)))
-        h3 = F.relu(self.bn3(self.conv3(h2)))
-        h4 = F.relu(self.bn4(self.conv4(h3)))
+        h1 = F.leaky_relu(self.conv1(x))
+        h2 = F.leaky_relu(self.bn2(self.conv2(h1)))
+        h3 = F.leaky_relu(self.bn3(self.conv3(h2)))
 
-        hidden  = F.relu(self.fc1(F.dropout(h4.view(-1, self.z_dim * 14 * 14))))
-        z_loc   = self.fc2_1(hidden)
-        z_scale = torch.exp(self.fc2_1(hidden))
-        return z_loc, z_scale
+        h_loc   = self.bn4_1(self.conv4_1(h3))
+        h_scale = self.bn4_2(self.conv4_2(h3))
+
+        z_loc   = F.avg_pool2d(h_loc, h_loc.shape[2]).squeeze()
+        z_scale = F.avg_pool2d(h_loc, h_scale.shape[2]).squeeze()
+
+        return z_loc, F.softplus(z_scale)
 
 class VAE(nn.Module):
     def __init__(self, n_channel, img_size = 28, z_dim=50, use_cuda=False, conf = dict()):
@@ -103,8 +102,9 @@ class VAE(nn.Module):
         for imgs, _ in loader:
             if self.use_cuda:
                 imgs = imgs.cuda()
-            loss = self.svi.step(imgs) / len(imgs)
+            loss = self.svi.step(imgs)
             epoch_loss += loss
+        epoch_loss /= len(loader.dataset)
         return epoch_loss
 
     def model(self, x):
@@ -114,7 +114,7 @@ class VAE(nn.Module):
             z_scale     = x.new_ones( torch.Size((len(x), self.z_dim)))
             z           = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
             loc_img     = self.decoder(z)
-            noise_level = 0.1 * x.new_ones(1)
+            noise_level = 0.01 * x.new_ones(1)
             pyro.sample("obs", dist.Normal(loc_img, noise_level).to_event(3), obs=x)
 
     def guide(self, x):
