@@ -15,16 +15,35 @@ class Decoder(nn.Module):
         self.img_size  = img_size
         self.n_channel = n_channel
         self.z_dim     = z_dim
-        hidden_dim     = 400
-        self.fc1       = nn.Linear(z_dim, hidden_dim)
-        self.fc21      = nn.Linear(hidden_dim, self.n_channel * self.img_size * self.img_size)
-        self.relu      = nn.ReLU()
-        self.sigmoid   = nn.Sigmoid()
+
+        ndf         = 16 # number of filters
+        kernel_size = 4
+        stride      = 2
+        padding     = 1
+
+        self.deconv1 = nn.ConvTranspose2d(self.z_dim, 4 * ndf, kernel_size = kernel_size)
+        self.bn1     = nn.BatchNorm2d(4 * ndf)
+
+        self.deconv2 = nn.ConvTranspose2d(4 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding = padding)
+        self.bn2     = nn.BatchNorm2d(2 * ndf)
+
+        self.deconv3 = nn.ConvTranspose2d(2 * ndf, 1 * ndf, kernel_size = kernel_size, stride = stride, padding = padding)
+        self.bn3     = nn.BatchNorm2d(1 * ndf)
+
+        self.deconv4 = nn.ConvTranspose2d(1 * ndf, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding)
+        self.bn4     = nn.BatchNorm2d(self.n_channel)
+
+        self.deconv5 = nn.ConvTranspose2d(self.n_channel, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding)
+
 
     def forward(self, z):
-        hidden  = self.relu(self.fc1(z.view(-1, self.z_dim)))
-        loc_img = self.sigmoid(self.fc21(hidden)).view(-1, self.n_channel, self.img_size, self.img_size)
-        return loc_img
+        h1      = F.relu(self.bn1(self.deconv1(z.view(-1, self.z_dim, 1, 1))))
+        h2      = F.relu(self.bn2(self.deconv2(h1)))
+        h3      = F.relu(self.bn3(self.deconv3(h2)))
+        h4      = F.relu(self.bn4(self.deconv4(h3)))
+        h5      = F.relu(self.deconv5(h4))
+        rec_img = F.interpolate(h5, size = self.img_size)
+        return rec_img
 
 class Encoder(nn.Module):
     def __init__(self, n_channel, img_size, z_dim):
@@ -32,16 +51,37 @@ class Encoder(nn.Module):
         self.img_size  = img_size
         self.n_channel = n_channel
         self.z_dim     = z_dim
-        hidden_dim     = 400
-        self.fc1       = nn.Linear(self.n_channel * self.img_size**2, hidden_dim)
-        self.fc21      = nn.Linear(hidden_dim, z_dim)
-        self.fc22      = nn.Linear(hidden_dim, z_dim)
+
+        ndf         = 16 # number of filters
+        kernel_size = 4
+        stride      = 2
+        padding     = 1
+
+        self.conv1 = nn.Conv2d(self.n_channel, ndf, kernel_size = kernel_size, stride = stride, padding= padding)
+        self.bn1   = nn.BatchNorm2d(ndf)
+
+        self.conv2 = nn.Conv2d(1 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding= padding)
+        self.bn2   = nn.BatchNorm2d(4 * ndf)
+
+        self.conv3 = nn.Conv2d(4 * ndf, 16 * ndf, kernel_size = kernel_size, stride = stride, padding= padding)
+        self.bn3   = nn.BatchNorm2d(16 * ndf)
+
+        self.conv4 = nn.Conv2d(16 * ndf, self.z_dim, kernel_size = kernel_size, stride = stride, padding= padding)
+        self.bn4   = nn.BatchNorm2d(self.z_dim)
+
+        self.fc1   = nn.Linear(self.z_dim * 14 * 14, self.z_dim)
+        self.fc2_1 = nn.Linear(self.z_dim, self.z_dim)
+        self.fc2_2 = nn.Linear(self.z_dim, self.z_dim)
 
     def forward(self, x):
-        x       = self.fc1(x.view(-1, self.n_channel * self.img_size**2))
-        hidden  = F.relu(x)
-        z_loc   = self.fc21(hidden)
-        z_scale = F.softplus(self.fc22(hidden))
+        h1 = F.relu(self.bn1(self.conv1(x)))
+        h2 = F.relu(self.bn2(self.conv2(h1)))
+        h3 = F.relu(self.bn3(self.conv3(h2)))
+        h4 = F.relu(self.bn4(self.conv4(h3)))
+
+        hidden  = F.relu(self.fc1(F.dropout(h4.view(-1, self.z_dim * 14 * 14))))
+        z_loc   = self.fc2_1(hidden)
+        z_scale = torch.exp(self.fc2_1(hidden))
         return z_loc, z_scale
 
 class VAE(nn.Module):
