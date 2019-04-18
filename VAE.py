@@ -16,7 +16,7 @@ class Decoder(nn.Module):
         self.n_channel = n_channel
         self.z_dim     = z_dim
 
-        ndf         = 16 # number of filters
+        ndf         = 128 # number of filters
         kernel_size = 4
         stride      = 2
         padding     = 1
@@ -52,7 +52,7 @@ class Encoder(nn.Module):
         self.n_channel = n_channel
         self.z_dim     = z_dim
 
-        ndf         = 16 # number of filters
+        ndf         = 128 # number of filters
         kernel_size = 4
         stride      = 2
         padding     = 1
