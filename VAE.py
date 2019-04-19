@@ -22,7 +22,7 @@ class Decoder(nn.Module):
         stride      = 2
         padding     = 1
 
-        self.deconv1 = nn.ConvTranspose2d(self.z_dim, 8 * ndf, kernel_size = 8)
+        # self.deconv1 = nn.ConvTranspose2d(self.z_dim, 8 * ndf, kernel_size = 8)
         self.bn1     = nn.BatchNorm2d(8 * ndf) # 1024 * 8 * 8
 
         self.deconv2 = nn.ConvTranspose2d(8 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding = padding)
@@ -37,7 +37,8 @@ class Decoder(nn.Module):
         self.deconv5 = nn.ConvTranspose2d(ndf, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding) # 3 * 128 * 128
 
     def forward(self, z):
-        h1      = F.relu(self.bn1(self.deconv1(z.view(-1, self.z_dim, 1, 1))))
+        # h1      = F.relu(self.bn1(self.deconv1(z.view(-1, self.z_dim, 1, 1))))
+        h1      = F.relu(self.bn1(F.interpolate(z.view(-1, self.z_dim, 1, 1), scale_factor = 8, mode = 'bilinear', align_corners = True)))
         h2      = F.relu(self.bn2(self.deconv2(h1)))
         h3      = F.relu(self.bn3(self.deconv3(h2)))
         h4      = F.relu(self.bn4(self.deconv4(h3)))
