@@ -20,7 +20,7 @@ loader     = torch.utils.data.DataLoader(dataset = images, pin_memory=use_cuda, 
 conf       = dict()
 conf['lr'] = 1e-3
 vae        = VAE(n_channel=3,img_size=img_size,z_dim = 1024, use_cuda = use_cuda, conf = conf)
-num_epochs = 1000
+num_epochs = 300
 for epoch in range(num_epochs):
     loss = vae.one_epoch(loader)
     print('Epoch %3d, loss = %g' % (epoch, loss), flush = True)

@@ -57,9 +57,7 @@ class Encoder(nn.Module):
         stride      = 2
         padding     = 1
 
-        self.model    = vision.models.resnet18(pretrained = True)
-        for p in self.model.parameters():
-            p.requires_grad = False
+        self.model    = vision.models.resnet18()
         self.model.fc = nn.Linear(512, self.z_dim * 2)
 
         # self.conv1 = nn.Conv2d(self.n_channel, ndf, kernel_size = kernel_size, stride = stride, padding= padding)
@@ -90,7 +88,7 @@ class Encoder(nn.Module):
         z_loc    = features[:, :self.z_dim]
         z_scale  = features[:, self.z_dim:]
 
-        return z_loc, F.softplus(z_scale)
+        return z_loc, torch.exp(z_scale)
 
 class VAE(nn.Module):
     def __init__(self, n_channel, img_size = 28, z_dim=50, use_cuda=False, conf = dict()):
