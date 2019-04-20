@@ -114,6 +114,16 @@ class VAE(nn.Module):
         epoch_loss /= len(loader.dataset)
         return epoch_loss
 
+    def evaluate(self, loader):
+        epoch_loss = 0.
+        for imgs, _ in loader:
+            if self.use_cuda:
+                imgs = imgs.cuda()
+            loss = self.svi.evaluate_loss(imgs)
+            epoch_loss += loss
+        epoch_loss /= len(loader.dataset)
+        return epoch_loss
+
     def model(self, x):
         pyro.module("decoder", self.decoder)
         with pyro.plate("data", len(x)):
