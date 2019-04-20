@@ -17,24 +17,24 @@ class Decoder(nn.Module):
         self.n_channel = n_channel
         self.z_dim     = z_dim
 
-        ndf         = 128 # number of filters
+        ndf         = 32 # number of filters
         kernel_size = 4
         stride      = 2
         padding     = 1
 
-        self.deconv1 = nn.ConvTranspose2d(self.z_dim, 8 * ndf, kernel_size = 8)
+        self.deconv1 = nn.ConvTranspose2d(self.z_dim, 8 * ndf, kernel_size = 8, bias = False)
         self.bn1     = nn.BatchNorm2d(8 * ndf) # 1024 * 8 * 8
 
-        self.deconv2 = nn.ConvTranspose2d(8 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding = padding)
+        self.deconv2 = nn.ConvTranspose2d(8 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding = padding, bias = False)
         self.bn2     = nn.BatchNorm2d(4 * ndf) # 512 * 16 * 16
 
-        self.deconv3 = nn.ConvTranspose2d(4 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding = padding)
+        self.deconv3 = nn.ConvTranspose2d(4 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding = padding, bias = False)
         self.bn3     = nn.BatchNorm2d(2 * ndf) # 256 * 32 * 32
 
-        self.deconv4 = nn.ConvTranspose2d(2 * ndf, ndf, kernel_size = kernel_size, stride = stride, padding = padding)
+        self.deconv4 = nn.ConvTranspose2d(2 * ndf, ndf, kernel_size = kernel_size, stride = stride, padding = padding, bias = False)
         self.bn4     = nn.BatchNorm2d(ndf) # 128 * 64 * 64
 
-        self.deconv5 = nn.ConvTranspose2d(ndf, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding) # 3 * 128 * 128
+        self.deconv5 = nn.ConvTranspose2d(ndf, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding, bias = False) # 3 * 128 * 128
 
     def forward(self, z):
         h1      = F.relu(self.bn1(self.deconv1(z.view(-1, self.z_dim, 1, 1))))
@@ -52,41 +52,44 @@ class Encoder(nn.Module):
         self.n_channel = n_channel
         self.z_dim     = z_dim
 
-        ndf         = 128 # number of filters
-        kernel_size = 4
-        stride      = 2
-        padding     = 1
 
-        self.model    = vision.models.resnet18()
-        self.model.fc = nn.Linear(512, self.z_dim * 2)
+        # self.model    = vision.models.resnet18()
+        # self.model.fc = nn.Linear(512, self.z_dim * 2)
+        
 
-        # self.conv1 = nn.Conv2d(self.n_channel, ndf, kernel_size = kernel_size, stride = stride, padding= padding)
+        ndf          = 32 # number of filters
+        kernel_size  = 4
+        stride       = 2
+        padding      = 1
 
-        # self.conv2 = nn.Conv2d(1 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding= padding)
-        # self.bn2   = nn.BatchNorm2d(2 * ndf)
+        self.conv1   = nn.Conv2d(self.n_channel, ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
 
-        # self.conv3 = nn.Conv2d(2 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding= padding)
-        # self.bn3   = nn.BatchNorm2d(4 * ndf)
+        self.conv2   = nn.Conv2d(1 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        self.bn2     = nn.BatchNorm2d(2 * ndf)
 
-        # self.conv4_1 = nn.Conv2d(4 * ndf, self.z_dim, kernel_size = kernel_size, stride = stride, padding= padding)
-        # self.bn4_1   = nn.BatchNorm2d(self.z_dim)
+        self.conv3   = nn.Conv2d(2 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        self.bn3     = nn.BatchNorm2d(4 * ndf)
 
-        # self.conv4_2 = nn.Conv2d(4 * ndf, self.z_dim, kernel_size = kernel_size, stride = stride, padding= padding)
-        # self.bn4_2   = nn.BatchNorm2d(self.z_dim)
+        self.conv4_1 = nn.Conv2d(4 * ndf, self.z_dim, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        self.bn4_1   = nn.BatchNorm2d(self.z_dim)
+
+        self.conv4_2 = nn.Conv2d(4 * ndf, self.z_dim, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        self.bn4_2   = nn.BatchNorm2d(self.z_dim)
 
     def forward(self, x):
-        # h1 = F.leaky_relu(self.conv1(x))
-        # h2 = F.leaky_relu(self.bn2(self.conv2(h1)))
-        # h3 = F.leaky_relu(self.bn3(self.conv3(h2)))
+        h1 = F.leaky_relu(self.conv1(x))
+        h2 = F.leaky_relu(self.bn2(self.conv2(h1)))
+        h3 = F.leaky_relu(self.bn3(self.conv3(h2)))
 
-        # h_loc   = self.bn4_1(self.conv4_1(h3))
-        # h_scale = self.bn4_2(self.conv4_2(h3))
+        h_loc   = self.bn4_1(self.conv4_1(h3))
+        h_scale = self.bn4_2(self.conv4_2(h3))
 
-        # z_loc   = F.avg_pool2d(h_loc, h_loc.shape[2]).squeeze()
-        # z_scale = F.avg_pool2d(h_loc, h_scale.shape[2]).squeeze()
-        features = self.model(x)
-        z_loc    = features[:, :self.z_dim]
-        z_scale  = features[:, self.z_dim:]
+        z_loc   = F.avg_pool2d(h_loc, h_loc.shape[2]).squeeze()
+        z_scale = F.avg_pool2d(h_loc, h_scale.shape[2]).squeeze()
+        
+        # features = self.model(x)
+        # z_loc    = features[:, :self.z_dim]
+        # z_scale  = features[:, self.z_dim:]
 
         return z_loc, torch.exp(z_scale)
 

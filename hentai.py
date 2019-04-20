@@ -34,4 +34,5 @@ for epoch in range(num_epochs):
     train_loss    = vae.one_epoch(train_loader)
     validate_loss = vae.evaluate(validate_loader)
     print('Epoch %3d, train_loss = %11.2f valid_loss = %11.2f' % (epoch, train_loss, validate_loss), flush = True)
+vae.eval()
 torch.save(vae, 'saved_vae')
