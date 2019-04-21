@@ -6,24 +6,24 @@ import pyro.optim
 import torchvision as vision
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
+from torchvision.utils import make_grid,save_image
 import numpy as np
 
 # Trained with 4000 hentai images from https://github.com/alexkimxyz/nsfw_data_scraper
 
-img_size   = 128
-batch_size = 32
+img_size   = 64
+batch_size = 64
 use_cuda   = True
-num_epochs = 500
-lr         = 5e-4
-z_dim      = 256
+num_epochs = 1000
+lr         = 3e-4
+z_dim      = 512
 transf     = transforms.Compose([
-    transforms.RandomRotation(10.),
-    transforms.ColorJitter(brightness = 0.1,contrast = 0.1,saturation = 0.1),
     transforms.RandomHorizontalFlip(),
     transforms.Resize((img_size,img_size)), 
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
+
 images                    = datasets.ImageFolder('./data/Hentai/', transform=transf)
 len_train                 = int(0.95 * len(images))
 len_validate              = len(images) - len_train
@@ -39,5 +39,12 @@ for epoch in range(num_epochs):
     print('Epoch %3d, train_loss = %11.2f valid_loss = %11.2f' % (epoch, train_loss, validate_loss), flush = True)
     if (epoch + 1) % 100 == 0:
         torch.save(vae, 'saved_vae')
+    vae.eval()
+    z = pyro.distributions.Normal(0., 1.).sample((64,z_dim)).cuda()
+    if use_cuda:
+        z = z.cuda()
+    imgs = make_grid(vae.decoder(z).cpu(), nrow=8)
+    save_image(imgs,'img_%d.png' % epoch)
+    vae.train()
 vae.eval()
 torch.save(vae, 'saved_vae')

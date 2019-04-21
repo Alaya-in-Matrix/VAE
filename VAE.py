@@ -13,6 +13,7 @@ from   pyro.optim import Adam
 class Decoder(nn.Module):
     def __init__(self, n_channel, img_size, z_dim):
         super(Decoder, self).__init__()
+        assert(img_size == 64 or img_size == 128)
         self.img_size  = img_size
         self.n_channel = n_channel
         self.z_dim     = z_dim
@@ -22,7 +23,7 @@ class Decoder(nn.Module):
         stride      = 2
         padding     = 1
 
-        self.deconv1 = nn.ConvTranspose2d(self.z_dim, 8 * ndf, kernel_size = 8, bias = False)
+        self.deconv1 = nn.ConvTranspose2d(self.z_dim, 8 * ndf, kernel_size = int(self.img_size / 64) * kernel_size, bias = False) #XXX
         self.bn1     = nn.BatchNorm2d(8 * ndf) # 1024 * 8 * 8
 
         self.deconv2 = nn.ConvTranspose2d(8 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding = padding, bias = False)
