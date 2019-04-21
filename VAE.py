@@ -17,7 +17,7 @@ class Decoder(nn.Module):
         self.n_channel = n_channel
         self.z_dim     = z_dim
 
-        ndf         = 16 # number of filters
+        ndf         = 64 # number of filters
         kernel_size = 4
         stride      = 2
         padding     = 1
@@ -113,6 +113,7 @@ class VAE(nn.Module):
             if self.use_cuda:
                 imgs = imgs.cuda()
             loss = self.svi.step(imgs)
+            print('%11.2f' % (loss / len(imgs)),flush = True)
             epoch_loss += loss
         epoch_loss /= len(loader.dataset)
         return epoch_loss
@@ -123,6 +124,7 @@ class VAE(nn.Module):
             if self.use_cuda:
                 imgs = imgs.cuda()
             loss = self.svi.evaluate_loss(imgs)
+            print('%11.2f' % (loss / len(imgs)))
             epoch_loss += loss
         epoch_loss /= len(loader.dataset)
         return epoch_loss
