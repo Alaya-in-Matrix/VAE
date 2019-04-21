@@ -13,10 +13,13 @@ import numpy as np
 img_size   = 128
 batch_size = 32
 use_cuda   = True
-num_epochs = 100
+num_epochs = 500
 lr         = 5e-4
 z_dim      = 256
 transf     = transforms.Compose([
+    transforms.RandomRotation(10.),
+    transforms.ColorJitter(brightness = 0.1,contrast = 0.1,saturation = 0.1),
+    transforms.RandomHorizontalFlip(),
     transforms.Resize((img_size,img_size)), 
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -34,5 +37,7 @@ for epoch in range(num_epochs):
     train_loss    = vae.one_epoch(train_loader)
     validate_loss = vae.evaluate(validate_loader)
     print('Epoch %3d, train_loss = %11.2f valid_loss = %11.2f' % (epoch, train_loss, validate_loss), flush = True)
+    if (epoch + 1) % 100 == 0:
+        torch.save(vae, 'saved_vae')
 vae.eval()
 torch.save(vae, 'saved_vae')
