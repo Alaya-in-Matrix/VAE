@@ -9,6 +9,7 @@ import torchvision.transforms as transforms
 import pyro.distributions     as dist
 from   pyro.infer import SVI, Trace_ELBO
 from   pyro.optim import Adam
+from   tqdm import tqdm
 
 class Decoder(nn.Module):
     def __init__(self, n_channel, img_size, z_dim):
@@ -58,7 +59,7 @@ class Encoder(nn.Module):
         self.model.fc = nn.Linear(512, self.z_dim * 2)
         
 
-        # ndf          = 16 # number of filters
+        # ndf          = 64 # number of filters
         # kernel_size  = 4
         # stride       = 2
         # padding      = 1
@@ -76,6 +77,9 @@ class Encoder(nn.Module):
 
         # self.conv4_2 = nn.Conv2d(4 * ndf, self.z_dim, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
         # self.bn4_2   = nn.BatchNorm2d(self.z_dim)
+        # 
+        # self.zloc_linear   = nn.Linear(self.z_dim * 4 * 4, self.z_dim)
+        # self.zscale_linear = nn.Linear(self.z_dim * 4 * 4, self.z_dim)
 
     def forward(self, x):
         # h1 = F.leaky_relu(self.conv1(x))
@@ -85,14 +89,14 @@ class Encoder(nn.Module):
         # h_loc   = self.bn4_1(self.conv4_1(h3))
         # h_scale = self.bn4_2(self.conv4_2(h3))
 
-        # z_loc   = F.avg_pool2d(h_loc, h_loc.shape[2]).squeeze()
-        # z_scale = F.avg_pool2d(h_loc, h_scale.shape[2]).squeeze()
-        
-        features = self.model(x)
-        z_loc    = features[:, :self.z_dim]
-        z_scale  = features[:, self.z_dim:]
+        # z_loc   = self.zloc_linear(h_loc.view(  -1, self.z_dim * 4 * 4)).squeeze()
+        # z_scale = self.zscale_linear(h_loc.view(-1, self.z_dim * 4 * 4)).squeeze()
 
-        return z_loc, torch.exp(z_scale)
+        features = self.model(x)
+        z_loc    = features[:, :self.z_dim].squeeze()
+        z_scale  = features[:, self.z_dim:].squeeze()
+
+        return z_loc, F.softplus(z_scale) + 1e-6
 
 class VAE(nn.Module):
     def __init__(self, n_channel, img_size = 28, z_dim=50, use_cuda=False, conf = dict()):
@@ -104,28 +108,29 @@ class VAE(nn.Module):
         self.decoder  = Decoder(n_channel, img_size, z_dim)
         if use_cuda:
             self.cuda()
-        self.lr       = conf.get('lr', 1e-4)
-        self.optim    = Adam({"lr": self.lr})
-        self.svi      = pyro.infer.SVI(self.model, self.guide, self.optim, loss = Trace_ELBO())
+        self.noise_level = conf.get('noise_level',0.1)
+        self.lr          = conf.get('lr', 1e-4)
+        self.optim       = Adam({"lr": self.lr})
+        self.svi         = pyro.infer.SVI(self.model, self.guide, self.optim, loss = Trace_ELBO())
 
     def one_epoch(self, loader):
         epoch_loss = 0.
-        for imgs, _ in loader:
+        for imgs, _ in tqdm(loader,desc='Training'):
             if self.use_cuda:
                 imgs = imgs.cuda()
             loss = self.svi.step(imgs)
-            print('%11.2f' % (loss / len(imgs)),flush = True)
+            #print('%11.2f' % (loss / len(imgs)),flush = True)
             epoch_loss += loss
         epoch_loss /= len(loader.dataset)
         return epoch_loss
 
     def evaluate(self, loader):
         epoch_loss = 0.
-        for imgs, _ in loader:
+        for imgs, _ in tqdm(loader,desc='Testing '):
             if self.use_cuda:
                 imgs = imgs.cuda()
             loss = self.svi.evaluate_loss(imgs)
-            print('%11.2f' % (loss / len(imgs)))
+            # print('%11.2f' % (loss / len(imgs)))
             epoch_loss += loss
         epoch_loss /= len(loader.dataset)
         return epoch_loss
@@ -138,8 +143,7 @@ class VAE(nn.Module):
             z           = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
             loc_img     = self.decoder(z)
             # pyro.sample("obs", dist.Bernoulli(0.5 * loc_img + 0.5).to_event(3), obs = 0.5 * x + 0.5)
-            noise_level = 0.05
-            pyro.sample("obs", dist.Normal(loc_img, noise_level).to_event(3), obs=x)
+            pyro.sample("obs", dist.Normal(loc_img, self.noise_level).to_event(3), obs=x)
 
     def guide(self, x):
         pyro.module("encoder", self.encoder)
