@@ -14,10 +14,10 @@ from   tqdm import tqdm,trange
 
 img_size    = 64
 batch_size  = 64
-use_cuda    = True
-num_epochs  = 500
+use_cuda    = False
+num_epochs  = 1000
+z_dim       = 128
 lr          = 3e-4
-z_dim       = 64
 noise_level = 0.1
 transf      = transforms.Compose([
     transforms.RandomHorizontalFlip(),

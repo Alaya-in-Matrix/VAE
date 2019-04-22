@@ -36,16 +36,19 @@ class Decoder(nn.Module):
         self.deconv4 = nn.ConvTranspose2d(2 * ndf, ndf, kernel_size = kernel_size, stride = stride, padding = padding, bias = False)
         self.bn4     = nn.BatchNorm2d(ndf) # 128 * 64 * 64
 
-        self.deconv5 = nn.ConvTranspose2d(ndf, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding, bias = False) # 3 * 128 * 128
+        self.deconv5_1 = nn.ConvTranspose2d(ndf, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding, bias = False) # 3 * 128 * 128
+        self.deconv5_2 = nn.ConvTranspose2d(ndf, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding, bias = False) # 3 * 128 * 128
 
     def forward(self, z):
-        h1      = F.relu(self.bn1(self.deconv1(z.view(-1, self.z_dim, 1, 1))))
-        h2      = F.relu(self.bn2(self.deconv2(h1)))
-        h3      = F.relu(self.bn3(self.deconv3(h2)))
-        h4      = F.relu(self.bn4(self.deconv4(h3)))
-        h5      = self.deconv5(h4)
-        rec_img = torch.tanh(h5)
-        return rec_img
+        h1          = F.relu(self.bn1(self.deconv1(z.view(-1, self.z_dim, 1, 1))))
+        h2          = F.relu(self.bn2(self.deconv2(h1)))
+        h3          = F.relu(self.bn3(self.deconv3(h2)))
+        h4          = F.relu(self.bn4(self.deconv4(h3)))
+        h5_1        = self.deconv5_1(h4)
+        h5_2        = self.deconv5_1(h4)
+        rec_img     = torch.tanh(h5_1)
+        noise_level = torch.exp(h5_2)
+        return rec_img, noise_level
 
 class Encoder(nn.Module):
     def __init__(self, n_channel, img_size, z_dim):
@@ -138,12 +141,12 @@ class VAE(nn.Module):
     def model(self, x):
         pyro.module("decoder", self.decoder)
         with pyro.plate("data", len(x)):
-            z_loc       = x.new_zeros(torch.Size((len(x), self.z_dim)))
-            z_scale     = x.new_ones( torch.Size((len(x), self.z_dim)))
-            z           = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
-            loc_img     = self.decoder(z)
+            z_loc                = x.new_zeros(torch.Size((len(x), self.z_dim)))
+            z_scale              = x.new_ones( torch.Size((len(x), self.z_dim)))
+            z                    = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
+            loc_img, noise_level = self.decoder(z)
             # pyro.sample("obs", dist.Bernoulli(0.5 * loc_img + 0.5).to_event(3), obs = 0.5 * x + 0.5)
-            pyro.sample("obs", dist.Normal(loc_img, self.noise_level).to_event(3), obs=x)
+            pyro.sample("obs", dist.Normal(loc_img, noise_level).to_event(3), obs=x)
 
     def guide(self, x):
         pyro.module("encoder", self.encoder)
@@ -157,5 +160,5 @@ class VAE(nn.Module):
                 x = x.cuda()
             z_loc, z_scale = self.encoder(x)
             z              = dist.Normal(z_loc, z_scale).sample()
-            loc_img        = self.decoder(z)
+            loc_img, _     = self.decoder(z)
         return loc_img.cpu()
