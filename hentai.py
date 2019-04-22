@@ -13,12 +13,12 @@ from   tqdm import tqdm,trange
 # Trained with 4000 hentai images from https://github.com/alexkimxyz/nsfw_data_scraper
 
 img_size    = 64
-batch_size  = 32
+batch_size  = 64
 use_cuda    = True
-num_epochs  = 400
+num_epochs  = 500
 lr          = 3e-4
-z_dim       = 512
-noise_level = 0.7
+z_dim       = 64
+noise_level = 0.1
 transf      = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     transforms.Resize((img_size,img_size)), 
@@ -36,10 +36,11 @@ conf                      = dict()
 conf['noise_level']       = noise_level
 conf['lr']                = lr
 vae                       = VAE(n_channel=3,img_size=img_size,z_dim = z_dim, use_cuda = use_cuda, conf = conf)
-for epoch in trange(num_epochs):
+tbar = tqdm(range(num_epochs))
+for epoch in tbar:
     train_loss    = vae.one_epoch(train_loader)
     validate_loss = vae.evaluate(validate_loader)
-    print('Epoch %3d, train_loss = %11.2f valid_loss = %11.2f' % (epoch, train_loss, validate_loss), flush = True)
+    #print('Epoch %3d, train_loss = %11.2f valid_loss = %11.2f' % (epoch, train_loss, validate_loss), flush = True)
     if (epoch + 1) % 100 == 0:
         torch.save(vae, 'saved_vae')
     vae.eval()
@@ -56,5 +57,7 @@ for epoch in trange(num_epochs):
     tr_imgs = make_grid(0.5 + 0.5 * bx_train)
     save_image(tr_imgs,'train_batch.png')
     vae.train()
+    tbar.set_description('%10.3f %10.3f' % (train_loss, validate_loss))
+
 vae.eval()
 torch.save(vae, 'saved_vae')
