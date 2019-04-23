@@ -15,10 +15,10 @@ from   tqdm import tqdm,trange
 img_size    = 64
 batch_size  = 64
 use_cuda    = True
-num_epochs  = 1000
+num_epochs  = 500
 z_dim       = 128
-lr          = 1e-4
-noise_level = 0.1
+lr          = 3e-4
+noise_level = 0.001
 transf      = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     transforms.Resize((img_size,img_size)), 
