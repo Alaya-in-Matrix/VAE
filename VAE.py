@@ -146,7 +146,7 @@ class VAE(nn.Module):
             z                    = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
             loc_img, noise_level = self.decoder(z)
             # pyro.sample("obs", dist.Bernoulli(0.5 * loc_img + 0.5).to_event(3), obs = 0.5 * x + 0.5)
-            pyro.sample("obs", dist.Normal(loc_img, self.noise_level + noise_level).to_event(3), obs=x)
+            pyro.sample("obs", dist.Normal(loc_img, torch.sqrt(self.noise_level**2 + noise_level**2)).to_event(3), obs=x)
 
     def guide(self, x):
         pyro.module("encoder", self.encoder)
