@@ -14,10 +14,10 @@ from   tqdm import tqdm,trange
 
 img_size    = 64
 batch_size  = 64
-use_cuda    = False
+use_cuda    = True
 num_epochs  = 1000
 z_dim       = 128
-lr          = 3e-4
+lr          = 1e-4
 noise_level = 0.1
 transf      = transforms.Compose([
     transforms.RandomHorizontalFlip(),
@@ -52,7 +52,7 @@ for epoch in tbar:
     z[:batch_size,:]              = pyro.distributions.Normal(0., 1.).sample((batch_size,z_dim)).cuda()
     z[batch_size:2*batch_size,:]  = zloc_train
     z[2*batch_size:,:]            = zloc_valid
-    imgs   = make_grid(0.5 + 0.5 * vae.decoder(z).cpu(), nrow=8)
+    imgs   = make_grid(0.5 + 0.5 * vae.decoder(z)[0].cpu(), nrow=8)
     save_image(imgs,'img_%d.png' % epoch)
     tr_imgs = make_grid(0.5 + 0.5 * bx_train)
     save_image(tr_imgs,'train_batch.png')
