@@ -116,6 +116,8 @@ class VAE(nn.Module):
         self.lr          = conf.get('lr', 3e-4)
     
     def forward(self, img):
+        if self.use_cuda:
+            img = img.cuda()
         z_loc, z_scale     = self.encoder(img.view(-1, 3, self.img_size, self.img_size))
         z                  = Normal(z_loc, z_scale).rsample() # rsample, automatical reparameterization
         rec_img, noise_var = self.decoder(z)
@@ -123,11 +125,9 @@ class VAE(nn.Module):
 
     def loss(self, z_loc, z_scale, img_loc, img_var, true_img):
         noise_level = torch.sqrt(self.noise_level**2 + img_var)
-        # rec_loss    = -1 * Normal(img_loc, noise_level).log_prob(true_img)
         rec_loss    = 0.5 * torch.pow((img_loc - true_img) / noise_level, 2) + 0.5 * torch.log(2 * np.pi * noise_level**2)
-        rec_loss    = 0.5 * torch.pow(img_loc - true_img, 2)
         kl_div      = kl_divergence(Normal(z_loc, z_scale), Normal(z_loc.new_zeros(1), z_scale.new_ones(1)))
-        return rec_loss.sum(), 5 * kl_div.sum()
+        return rec_loss.sum(), kl_div.sum()
 
     def one_epoch(self, loader):
         opt            = optim.Adam(self.parameters(), lr = self.lr, weight_decay = 1e-4)
@@ -135,6 +135,8 @@ class VAE(nn.Module):
         epoch_kl_div   = 0.
         tbar           = tqdm(loader)
         for batch, _ in tbar:
+            if self.use_cuda:
+                batch = batch.cuda()
             opt.zero_grad()
             z_loc, z_scale, rec_img, noise_var = self.forward(batch)
             rec_loss, kl_div  = self.loss(z_loc, z_scale, rec_img, noise_var, batch)
@@ -152,6 +154,8 @@ class VAE(nn.Module):
         with torch.no_grad():
             tbar = tqdm(loader)
             for batch, _ in tbar:
+                if self.use_cuda:
+                    batch = batch.cuda()
                 z_loc, z_scale, rec_img, noise_var  = self.forward(batch)
                 rec_loss, kl_div  = self.loss(z_loc, z_scale, rec_img, noise_var, batch)
                 loss              = rec_loss + kl_div

@@ -13,7 +13,7 @@ from   tqdm import tqdm,trange
 # Trained with 4000 hentai images from https://github.com/alexkimxyz/nsfw_data_scraper
 
 img_size    = 64
-batch_size  = 16
+batch_size  = 64
 use_cuda    = True
 num_epochs  = 500
 z_dim       = 64
