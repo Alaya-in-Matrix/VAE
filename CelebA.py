@@ -15,7 +15,7 @@ from   tqdm import tqdm,trange
 img_size    = 64
 batch_size  = 64
 use_cuda    = True
-num_epochs  = 250
+num_epochs  = 25
 z_dim       = 512
 lr          = 3e-4
 noise_level = 1e-3
@@ -26,7 +26,7 @@ transf      = transforms.Compose([
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
 
-images                    = datasets.ImageFolder('./data/animeface-character-dataset/thumb', transform=transf)
+images                    = datasets.ImageFolder('./data/CelebA/', transform=transf)
 len_train                 = int(0.95 * len(images))
 len_validate              = len(images) - len_train
 train_imgs, validate_imgs = torch.utils.data.random_split(images, [len_train, len_validate])

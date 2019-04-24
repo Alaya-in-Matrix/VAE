@@ -15,10 +15,10 @@ from   tqdm import tqdm,trange
 img_size    = 64
 batch_size  = 64
 use_cuda    = True
-num_epochs  = 500
-z_dim       = 128
+num_epochs  = 250
+z_dim       = 512
 lr          = 3e-4
-noise_level = 0.001
+noise_level = 1e-3
 transf      = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     transforms.Resize((img_size,img_size)), 
@@ -37,6 +37,7 @@ conf['noise_level']       = noise_level
 conf['lr']                = lr
 vae                       = VAE(n_channel=3,img_size=img_size,z_dim = z_dim, use_cuda = use_cuda, conf = conf)
 tbar = tqdm(range(num_epochs))
+fid = open('losses','w')
 for epoch in tbar:
     train_loss    = vae.one_epoch(train_loader)
     validate_loss = vae.evaluate(validate_loader)
@@ -52,12 +53,14 @@ for epoch in tbar:
     z[:batch_size,:]              = pyro.distributions.Normal(0., 1.).sample((batch_size,z_dim)).cuda()
     z[batch_size:2*batch_size,:]  = zloc_train
     z[2*batch_size:,:]            = zloc_valid
-    imgs   = make_grid(0.5 + 0.5 * vae.decoder(z)[0].cpu(), nrow=8)
+
+    dec_imgs = 0.5 + 0.5 * vae.decoder(z)[0].cpu()
+    imgs     = make_grid(torch.cat((dec_imgs,0.5 + 0.5*bx_train,0.5 + 0.5*bx_valid),dim=0))
     save_image(imgs,'img_%d.png' % epoch)
-    tr_imgs = make_grid(0.5 + 0.5 * bx_train)
-    save_image(tr_imgs,'train_batch.png')
     vae.train()
     tbar.set_description('%10.3f %10.3f' % (train_loss, validate_loss))
-
+    fid.write('%10.3f %10.3f\n' % (train_loss, validate_loss))
+    fid.flush()
+fid.close()
 vae.eval()
 torch.save(vae, 'saved_vae')
