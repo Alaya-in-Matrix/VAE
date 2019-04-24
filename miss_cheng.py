@@ -47,9 +47,11 @@ for epoch in tbar:
     bx_valid,_ = iter(validate_loader).next()
     bx_train   = bx_train[:8]
     bx_valid   = bx_valid[:8]
-    rand_samp  = vae.random_sample(num_samples = 8)
-    rec_train  = vae.reconstruct_img(bx_train)
-    rec_valid  = vae.reconstruct_img(bx_valid)
+    rand_samp  = 0.5 + 0.5 * vae.random_sample(num_samples = 8)
+    rec_train  = 0.5 + 0.5 * vae.reconstruct_img(bx_train)
+    rec_valid  = 0.5 + 0.5 * vae.reconstruct_img(bx_valid)
+    bx_train   = 0.5 + 0.5 * bx_train
+    bx_valid   = 0.5 + 0.5 * bx_valid
     show_imgs  = make_grid(torch.cat((rand_samp, bx_train, rec_train, bx_valid, rec_valid), dim = 0), nrow=8)
     save_image(show_imgs,'img_%d.png' % epoch)
     vae.train()

@@ -64,7 +64,7 @@ class Decoder(nn.Module):
         self.n_channel = n_channel
         self.z_dim     = z_dim
 
-        ndf         = 32 # number of filters
+        ndf         = 64# number of filters
         kernel_size = 4
         stride      = 2
         padding     = 1
@@ -122,12 +122,12 @@ class VAE(nn.Module):
         return z_loc, z_scale, rec_img, noise_var
 
     def loss(self, z_loc, z_scale, img_loc, img_var, true_img):
-        # noise_level = torch.sqrt(self.noise_level**2 + img_var)
-        # noise_level = 0.1
+        noise_level = torch.sqrt(self.noise_level**2 + img_var)
         # rec_loss    = -1 * Normal(img_loc, noise_level).log_prob(true_img)
+        rec_loss    = 0.5 * torch.pow((img_loc - true_img) / noise_level, 2) + 0.5 * torch.log(2 * np.pi * noise_level**2)
         rec_loss    = 0.5 * torch.pow(img_loc - true_img, 2)
         kl_div      = kl_divergence(Normal(z_loc, z_scale), Normal(z_loc.new_zeros(1), z_scale.new_ones(1)))
-        return rec_loss.sum(), 100. * kl_div.sum()
+        return rec_loss.sum(), 5 * kl_div.sum()
 
     def one_epoch(self, loader):
         opt            = optim.Adam(self.parameters(), lr = self.lr, weight_decay = 1e-4)
