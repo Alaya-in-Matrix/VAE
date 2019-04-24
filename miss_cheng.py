@@ -12,13 +12,13 @@ from   tqdm import tqdm,trange
 
 # Trained with 4000 hentai images from https://github.com/alexkimxyz/nsfw_data_scraper
 
-img_size    = 128
-batch_size  = 8
-use_cuda    = True
-num_epochs  = 500
-z_dim       = 512
-lr          = 1e-3
-noise_level = 5.
+img_size    = 64
+batch_size  = 16
+use_cuda    = False
+num_epochs  = 100
+z_dim       = 64
+lr          = 1e-4
+noise_level = 1e-3
 transf      = transforms.Compose([
     # transforms.RandomHorizontalFlip(),
     transforms.Resize((img_size,img_size)), 
@@ -36,28 +36,29 @@ conf                      = dict()
 conf['noise_level']       = noise_level
 conf['lr']                = lr
 vae                       = VAE(n_channel=3,img_size=img_size,z_dim = z_dim, use_cuda = use_cuda, conf = conf)
-tbar = tqdm(range(num_epochs))
+tbar                      = tqdm(range(num_epochs))
+fid                       = open('losses', 'w')
 for epoch in tbar:
-    train_loss    = vae.one_epoch(train_loader)
-    validate_loss = vae.evaluate(validate_loader)
-    #print('Epoch %3d, train_loss = %11.2f valid_loss = %11.2f' % (epoch, train_loss, validate_loss), flush = True)
-    if (epoch + 1) % 100 == 0:
-        torch.save(vae, 'saved_vae')
+    train_rec, train_kl = vae.one_epoch(train_loader)
+    valid_rec, valid_kl = vae.evaluate(validate_loader)
+
     vae.eval()
-    bx_train,_   = iter(train_loader).next()
-    bx_valid,_   = iter(validate_loader).next()
-    zloc_train,_ = vae.encoder(bx_train.cuda())
-    zloc_valid,_ = vae.encoder(bx_valid.cuda())
-    z            = torch.zeros(3*batch_size,z_dim).cuda()
-    z[:batch_size,:]              = pyro.distributions.Normal(0., 1.).sample((batch_size,z_dim)).cuda()
-    z[batch_size:2*batch_size,:]  = zloc_train
-    z[2*batch_size:,:]            = zloc_valid
-    imgs   = make_grid(0.5 + 0.5 * vae.decoder(z)[0].cpu(), nrow=8)
-    save_image(imgs,'img_%d.png' % epoch)
-    tr_imgs = make_grid(0.5 + 0.5 * bx_train)
-    save_image(tr_imgs,'train_batch.png')
+    bx_train,_ = iter(train_loader).next()
+    bx_valid,_ = iter(validate_loader).next()
+    bx_train   = bx_train[:8]
+    bx_valid   = bx_valid[:8]
+    rand_samp  = vae.random_sample(num_samples = 8)
+    rec_train  = vae.reconstruct_img(bx_train)
+    rec_valid  = vae.reconstruct_img(bx_valid)
+    show_imgs  = make_grid(torch.cat((rand_samp, bx_train, rec_train, bx_valid, rec_valid), dim = 0), nrow=8)
+    save_image(show_imgs,'img_%d.png' % epoch)
     vae.train()
-    tbar.set_description('%10.3f %10.3f' % (train_loss, validate_loss))
+
+    tbar.set_description('%8.3f %8.3f %8.3f %8.3f' % (train_rec ,  train_kl , valid_rec, valid_kl))
+    fid.write('%8.3f %8.3f %8.3f %8.3f\n' % (train_rec ,  train_kl , valid_rec, valid_kl))
+    fid.flush()
+
+fid.close()
 
 vae.eval()
 torch.save(vae, 'saved_vae')
