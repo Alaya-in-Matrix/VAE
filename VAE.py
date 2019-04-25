@@ -89,18 +89,20 @@ class Decoder(nn.Module):
         self.bn4     = nn.BatchNorm2d(ndf)      
 
         self.deconv5_1 = nn.ConvTranspose2d(ndf, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding, bias = False) 
-        self.deconv5_2 = nn.ConvTranspose2d(ndf, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding, bias = False) 
+        # self.deconv5_2 = nn.ConvTranspose2d(ndf, self.n_channel, kernel_size = kernel_size, stride = stride, padding = padding, bias = False) 
 
     def forward(self, z):
         h1        = F.relu(self.bn1(self.linear1(z.view(-1, self.z_dim)).view(-1, 8 * self.ndf, self.init_size, self.init_size)))
         h2        = F.relu(self.bn2(self.deconv2(h1)))
         h3        = F.relu(self.bn3(self.deconv3(h2)))
         h4        = F.relu(self.bn4(self.deconv4(h3)))
+
         h5_1      = self.deconv5_1(h4)
-        h5_2      = self.deconv5_1(h4)
         rec_img   = torch.tanh(h5_1)
-        noise_var = torch.exp(h5_2)
-        return rec_img, noise_var
+
+        # h5_2      = self.deconv5_1(h4)
+        # noise_var = torch.exp(h5_2)
+        return rec_img
 
 
 class VAE(nn.Module):
@@ -121,17 +123,14 @@ class VAE(nn.Module):
     def forward(self, img):
         if self.use_cuda:
             img = img.cuda()
-        z_loc, z_scale     = self.encoder(img.view(-1, 3, self.img_size, self.img_size))
-        eps                = torch.randn(z_loc.shape).to(z_loc.device)
-        z                  = z_loc + eps * z_scale
-        # z                  = Normal(z_loc, z_scale).rsample() # rsample, automatical reparameterization
-        rec_img, noise_var = self.decoder(z)
-        return z_loc, z_scale, rec_img, noise_var
+        z_loc, z_scale = self.encoder(img.view(-1, 3, self.img_size, self.img_size))
+        z              = z_loc + z_scale * torch.randn(z_loc.shape).to(z_loc.device)
+        rec_img        = self.decoder(z)
+        return z_loc, z_scale, rec_img
 
-    def loss(self, z_loc, z_scale, img_loc, img_var, true_img):
-        noise_level = torch.sqrt(self.noise_level**2 + img_var)
+    def loss(self, z_loc, z_scale, img_loc, true_img):
+        noise_level = self.noise_level * torch.ones(1).to(z_loc.device)
         rec_loss    = 0.5 * torch.pow((img_loc - true_img) / noise_level, 2) + 0.5 * torch.log(2 * np.pi * noise_level**2)
-        # rec_loss    = nn.BCELoss(size_average=False)(0.5 + 0.5 * img_loc,0.5 + 0.5 * true_img)
         kl_div      = kl_divergence(Normal(z_loc, z_scale), Normal(z_loc.new_zeros(1), z_scale.new_ones(1)))
         return rec_loss.sum(), kl_div.sum()
 
@@ -144,8 +143,8 @@ class VAE(nn.Module):
             if self.use_cuda:
                 batch = batch.cuda()
             opt.zero_grad()
-            z_loc, z_scale, rec_img, noise_var = self.forward(batch)
-            rec_loss, kl_div  = self.loss(z_loc, z_scale, rec_img, noise_var, batch)
+            z_loc, z_scale, rec_img = self.forward(batch)
+            rec_loss, kl_div  = self.loss(z_loc, z_scale, rec_img, batch)
             loss              = rec_loss + self.kl_factor * kl_div
             epoch_rec_loss   += rec_loss / len(loader.dataset)
             epoch_kl_div     += kl_div   / len(loader.dataset)
@@ -162,8 +161,8 @@ class VAE(nn.Module):
             for batch, _ in tbar:
                 if self.use_cuda:
                     batch = batch.cuda()
-                z_loc, z_scale, rec_img, noise_var  = self.forward(batch)
-                rec_loss, kl_div  = self.loss(z_loc, z_scale, rec_img, noise_var, batch)
+                z_loc, z_scale, rec_img = self.forward(batch)
+                rec_loss, kl_div  = self.loss(z_loc, z_scale, rec_img, batch)
                 loss              = rec_loss + self.kl_factor * kl_div
                 epoch_rec_loss   += rec_loss / len(loader.dataset)
                 epoch_kl_div     += kl_div   / len(loader.dataset)
@@ -174,15 +173,13 @@ class VAE(nn.Module):
         z = Normal(torch.tensor(0.), torch.tensor(1.)).sample((num_samples, self.z_dim))
         if self.use_cuda:
             z = z.cuda()
-        mu, var     = self.decoder(z)
-        noise_level = torch.sqrt(self.noise_level**2 + var)
-        img         = Normal(mu,noise_level).sample().cpu()
+        mu  = self.decoder(z)
+        img = Normal(mu,self.noise_level).sample().cpu()
         return img
 
     def reconstruct_img(self, imgs):
         if self.use_cuda:
             imgs = imgs.cuda()
-        _, _, mu, var = self.forward(imgs)
-        noise_level = torch.sqrt(self.noise_level**2 + var)
-        rec_img     = Normal(mu,noise_level).sample().cpu()
+        _, _, mu = self.forward(imgs)
+        rec_img     = Normal(mu,self.noise_level).sample().cpu()
         return rec_img
