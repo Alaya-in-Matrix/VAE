@@ -174,11 +174,15 @@ class VAE(nn.Module):
         z = Normal(torch.tensor(0.), torch.tensor(1.)).sample((num_samples, self.z_dim))
         if self.use_cuda:
             z = z.cuda()
-        rec_img, _ = self.decoder(z)
-        return rec_img.cpu()
+        mu, var     = self.decoder(z)
+        noise_level = torch.sqrt(self.noise_level**2 + var)
+        img         = Normal(mu,noise_level).sample().cpu()
+        return img
 
     def reconstruct_img(self, imgs):
         if self.use_cuda:
             imgs = imgs.cuda()
-        _, _, rec_img, _ = self.forward(imgs)
-        return rec_img.cpu()
+        _, _, mu, var = self.forward(imgs)
+        noise_level = torch.sqrt(self.noise_level**2 + var)
+        rec_img     = Normal(mu,noise_level).sample().cpu()
+        return rec_img

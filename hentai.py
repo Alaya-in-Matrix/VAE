@@ -15,9 +15,9 @@ from   tqdm import tqdm,trange
 img_size    = 64
 batch_size  = 64
 use_cuda    = True
-num_epochs  = 100
+num_epochs  = 200
 z_dim       = 256
-lr          = 3e-4
+lr          = 5e-5
 noise_level = 1e-3
 kl_factor   = 10.
 transf      = transforms.Compose([
