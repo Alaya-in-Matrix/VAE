@@ -19,7 +19,9 @@ class Encoder(nn.Module):
 
         # Directly use resnet18 as feature extractor
         self.model    = vision.models.resnet18()
-        self.model.fc = nn.Linear(512, self.z_dim * 2)
+        self.model.fc = nn.Sequential(
+            nn.Linear(512, self.z_dim * 2),
+            nn.BatchNorm1d(self.z_dim * 2))
         
         # ndf         = 64 # number of filters
         # kernel_size = 4
@@ -114,18 +116,22 @@ class VAE(nn.Module):
             self.cuda()
         self.noise_level = conf.get('noise_level',0.01)
         self.lr          = conf.get('lr', 3e-4)
+        self.kl_factor   = conf.get('kl_factor', 1.0)
     
     def forward(self, img):
         if self.use_cuda:
             img = img.cuda()
         z_loc, z_scale     = self.encoder(img.view(-1, 3, self.img_size, self.img_size))
-        z                  = Normal(z_loc, z_scale).rsample() # rsample, automatical reparameterization
+        eps                = torch.randn(z_loc.shape).to(z_loc.device)
+        z                  = z_loc + eps * z_scale
+        # z                  = Normal(z_loc, z_scale).rsample() # rsample, automatical reparameterization
         rec_img, noise_var = self.decoder(z)
         return z_loc, z_scale, rec_img, noise_var
 
     def loss(self, z_loc, z_scale, img_loc, img_var, true_img):
         noise_level = torch.sqrt(self.noise_level**2 + img_var)
         rec_loss    = 0.5 * torch.pow((img_loc - true_img) / noise_level, 2) + 0.5 * torch.log(2 * np.pi * noise_level**2)
+        # rec_loss    = nn.BCELoss(size_average=False)(0.5 + 0.5 * img_loc,0.5 + 0.5 * true_img)
         kl_div      = kl_divergence(Normal(z_loc, z_scale), Normal(z_loc.new_zeros(1), z_scale.new_ones(1)))
         return rec_loss.sum(), kl_div.sum()
 
@@ -140,7 +146,7 @@ class VAE(nn.Module):
             opt.zero_grad()
             z_loc, z_scale, rec_img, noise_var = self.forward(batch)
             rec_loss, kl_div  = self.loss(z_loc, z_scale, rec_img, noise_var, batch)
-            loss              = rec_loss + kl_div
+            loss              = rec_loss + self.kl_factor * kl_div
             epoch_rec_loss   += rec_loss / len(loader.dataset)
             epoch_kl_div     += kl_div   / len(loader.dataset)
             loss.backward()
@@ -158,7 +164,7 @@ class VAE(nn.Module):
                     batch = batch.cuda()
                 z_loc, z_scale, rec_img, noise_var  = self.forward(batch)
                 rec_loss, kl_div  = self.loss(z_loc, z_scale, rec_img, noise_var, batch)
-                loss              = rec_loss + kl_div
+                loss              = rec_loss + self.kl_factor * kl_div
                 epoch_rec_loss   += rec_loss / len(loader.dataset)
                 epoch_kl_div     += kl_div   / len(loader.dataset)
                 tbar.set_description('Test %10.2f %10.2f' % (epoch_rec_loss, epoch_kl_div))

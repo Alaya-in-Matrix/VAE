@@ -15,10 +15,11 @@ from   tqdm import tqdm,trange
 img_size    = 64
 batch_size  = 64
 use_cuda    = True
-num_epochs  = 500
-z_dim       = 64
+num_epochs  = 100
+z_dim       = 256
 lr          = 3e-4
 noise_level = 1e-3
+kl_factor   = 10.
 transf      = transforms.Compose([
     # transforms.RandomHorizontalFlip(),
     transforms.Resize((img_size,img_size)), 
@@ -35,6 +36,7 @@ validate_loader           = torch.utils.data.DataLoader(dataset = validate_imgs,
 conf                      = dict()
 conf['noise_level']       = noise_level
 conf['lr']                = lr
+conf['kl_factor']         = kl_factor
 vae                       = VAE(n_channel=3,img_size=img_size,z_dim = z_dim, use_cuda = use_cuda, conf = conf)
 tbar                      = tqdm(range(num_epochs))
 fid                       = open('losses', 'w')
