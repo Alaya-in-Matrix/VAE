@@ -23,13 +23,14 @@ class Encoder(nn.Module):
         #     nn.Linear(512, self.z_dim * 2),
         #     nn.BatchNorm1d(self.z_dim * 2))
         
-        ndf         = 64 # number of filters
+        ndf         = 32 # number of filters
         kernel_size = 4
         stride      = 2
         padding     = 1
         self.ndf    = ndf
 
         self.conv1  = nn.Conv2d(self.n_channel, ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        self.bn1    = nn.BatchNorm2d(1 * ndf)
 
         self.conv2  = nn.Conv2d(1 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
         self.bn2    = nn.BatchNorm2d(2 * ndf)
@@ -42,14 +43,15 @@ class Encoder(nn.Module):
 
         self.final_img_size = self.img_size // 16
         self.fc             = nn.Linear(8 * ndf * self.final_img_size**2, 2 * self.z_dim)
+        self.bn5            = nn.BatchNorm1d(2 * self.z_dim)
 
     def forward(self, x):
-        h1 = F.leaky_relu(self.conv1(x),            negative_slope=0.2)
+        h1 = F.leaky_relu(self.bn1(self.conv1(x)),  negative_slope=0.2)
         h2 = F.leaky_relu(self.bn2(self.conv2(h1)), negative_slope=0.2)
         h3 = F.leaky_relu(self.bn3(self.conv3(h2)), negative_slope=0.2)
         h4 = F.leaky_relu(self.bn4(self.conv4(h3)), negative_slope=0.2)
 
-        zfeatures = self.fc(h4.view(-1, 8 * self.ndf * self.final_img_size**2))
+        zfeatures = self.bn5(self.fc(h4.view(-1, 8 * self.ndf * self.final_img_size**2)))
         z_loc     = zfeatures[:, :self.z_dim]
         z_scale   = zfeatures[:, self.z_dim:]
 
@@ -66,7 +68,7 @@ class Decoder(nn.Module):
         self.n_channel = n_channel
         self.z_dim     = z_dim
 
-        ndf         = 128# number of filters
+        ndf         = 32# number of filters
         kernel_size = 4
         stride      = 2
         padding     = 1
