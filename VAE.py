@@ -17,45 +17,45 @@ class Encoder(nn.Module):
         self.n_channel = n_channel
         self.z_dim     = z_dim
 
-        # Directly use resnet18 as feature extractor
-        self.model    = vision.models.resnet18()
-        self.model.fc = nn.Sequential(
-            nn.Linear(512, self.z_dim * 2),
-            nn.BatchNorm1d(self.z_dim * 2))
+        # # Directly use resnet18 as feature extractor
+        # self.model    = vision.models.resnet18()
+        # self.model.fc = nn.Sequential(
+        #     nn.Linear(512, self.z_dim * 2),
+        #     nn.BatchNorm1d(self.z_dim * 2))
         
-        # ndf         = 64 # number of filters
-        # kernel_size = 4
-        # stride      = 2
-        # padding     = 1
-        # self.ndf    = ndf
+        ndf         = 64 # number of filters
+        kernel_size = 4
+        stride      = 2
+        padding     = 1
+        self.ndf    = ndf
 
-        # self.conv1  = nn.Conv2d(self.n_channel, ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        self.conv1  = nn.Conv2d(self.n_channel, ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
 
-        # self.conv2  = nn.Conv2d(1 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
-        # self.bn2    = nn.BatchNorm2d(2 * ndf)
+        self.conv2  = nn.Conv2d(1 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        self.bn2    = nn.BatchNorm2d(2 * ndf)
 
-        # self.conv3  = nn.Conv2d(2 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
-        # self.bn3    = nn.BatchNorm2d(4 * ndf)
+        self.conv3  = nn.Conv2d(2 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        self.bn3    = nn.BatchNorm2d(4 * ndf)
 
-        # self.conv4  = nn.Conv2d(4 * ndf, 8 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
-        # self.bn4    = nn.BatchNorm2d(8 * ndf)
+        self.conv4  = nn.Conv2d(4 * ndf, 8 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        self.bn4    = nn.BatchNorm2d(8 * ndf)
 
-        # self.final_img_size = self.img_size // 16
-        # self.fc             = nn.Linear(8 * ndf * self.final_img_size**2, 2 * self.z_dim)
+        self.final_img_size = self.img_size // 16
+        self.fc             = nn.Linear(8 * ndf * self.final_img_size**2, 2 * self.z_dim)
 
     def forward(self, x):
-        # h1 = F.leaky_relu(self.conv1(x),            negative_slope=0.2)
-        # h2 = F.leaky_relu(self.bn2(self.conv2(h1)), negative_slope=0.2)
-        # h3 = F.leaky_relu(self.bn3(self.conv3(h2)), negative_slope=0.2)
-        # h4 = F.leaky_relu(self.bn4(self.conv4(h3)), negative_slope=0.2)
+        h1 = F.leaky_relu(self.conv1(x),            negative_slope=0.2)
+        h2 = F.leaky_relu(self.bn2(self.conv2(h1)), negative_slope=0.2)
+        h3 = F.leaky_relu(self.bn3(self.conv3(h2)), negative_slope=0.2)
+        h4 = F.leaky_relu(self.bn4(self.conv4(h3)), negative_slope=0.2)
 
-        # zfeatures = self.fc(h4.view(-1, 8 * self.ndf * self.final_img_size**2))
-        # z_loc     = zfeatures[:, :self.z_dim]
-        # z_scale   = zfeatures[:, self.z_dim:]
+        zfeatures = self.fc(h4.view(-1, 8 * self.ndf * self.final_img_size**2))
+        z_loc     = zfeatures[:, :self.z_dim]
+        z_scale   = zfeatures[:, self.z_dim:]
 
-        features = self.model(x)
-        z_loc    = features[:, :self.z_dim].squeeze()
-        z_scale  = features[:, self.z_dim:].squeeze()
+        # features = self.model(x)
+        # z_loc    = features[:, :self.z_dim].squeeze()
+        # z_scale  = features[:, self.z_dim:].squeeze()
 
         return z_loc, torch.exp(z_scale) + 1e-6
 
@@ -66,7 +66,7 @@ class Decoder(nn.Module):
         self.n_channel = n_channel
         self.z_dim     = z_dim
 
-        ndf         = 64# number of filters
+        ndf         = 128# number of filters
         kernel_size = 4
         stride      = 2
         padding     = 1
@@ -129,8 +129,10 @@ class VAE(nn.Module):
         return z_loc, z_scale, rec_img
 
     def loss(self, z_loc, z_scale, img_loc, true_img):
-        noise_level = self.noise_level * torch.ones(1).to(z_loc.device)
-        rec_loss    = 0.5 * torch.pow((img_loc - true_img) / noise_level, 2) + 0.5 * torch.log(2 * np.pi * noise_level**2)
+        # noise_level = self.noise_level * torch.ones(1).to(z_loc.device)
+        # rec_loss    = 0.5 * torch.pow((img_loc - true_img) / noise_level, 2) + 0.5 * torch.log(2 * np.pi * noise_level**2)
+        # rec_loss    = 0.5 * (img_loc - true_img)**2
+        rec_loss    = nn.BCELoss(reduction = 'none')(0.5 + 0.5 * img_loc,0.5 + 0.5 * true_img)
         kl_div      = kl_divergence(Normal(z_loc, z_scale), Normal(z_loc.new_zeros(1), z_scale.new_ones(1)))
         return rec_loss.sum(), kl_div.sum()
 

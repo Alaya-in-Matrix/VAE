@@ -16,11 +16,12 @@ img_size    = 64
 batch_size  = 64
 use_cuda    = True
 num_epochs  = 50
-z_dim       = 256
+z_dim       = 512
 lr          = 3e-4
 noise_level = 1e-3
+kl_factor   = 1.
 transf      = transforms.Compose([
-    transforms.RandomHorizontalFlip(),
+    #transforms.RandomHorizontalFlip(),
     transforms.Resize((img_size,img_size)), 
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -35,6 +36,7 @@ validate_loader           = torch.utils.data.DataLoader(dataset = validate_imgs,
 conf                      = dict()
 conf['noise_level']       = noise_level
 conf['lr']                = lr
+conf['kl_factor']         = kl_factor
 vae                       = VAE(n_channel=3,img_size=img_size,z_dim = z_dim, use_cuda = use_cuda, conf = conf)
 tbar                      = tqdm(range(num_epochs))
 fid                       = open('losses', 'w')
