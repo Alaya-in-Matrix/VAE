@@ -17,47 +17,47 @@ class Encoder(nn.Module):
         self.n_channel = n_channel
         self.z_dim     = z_dim
 
-        # # Directly use resnet18 as feature extractor
-        # self.model    = vision.models.resnet18()
-        # self.model.fc = nn.Sequential(
-        #     nn.Linear(512, self.z_dim * 2),
-        #     nn.BatchNorm1d(self.z_dim * 2))
+        # Directly use resnet18 as feature extractor
+        self.model    = vision.models.resnet18(pretrained=True)
+        self.model.fc = nn.Sequential(
+            nn.Linear(512, self.z_dim * 2),
+            nn.BatchNorm1d(self.z_dim * 2))
         
-        ndf         = 32 # number of filters
-        kernel_size = 4
-        stride      = 2
-        padding     = 1
-        self.ndf    = ndf
+        # ndf         = 32 # number of filters
+        # kernel_size = 4
+        # stride      = 2
+        # padding     = 1
+        # self.ndf    = ndf
 
-        self.conv1  = nn.Conv2d(self.n_channel, ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
-        self.bn1    = nn.BatchNorm2d(1 * ndf)
+        # self.conv1  = nn.Conv2d(self.n_channel, ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        # self.bn1    = nn.BatchNorm2d(1 * ndf)
 
-        self.conv2  = nn.Conv2d(1 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
-        self.bn2    = nn.BatchNorm2d(2 * ndf)
+        # self.conv2  = nn.Conv2d(1 * ndf, 2 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        # self.bn2    = nn.BatchNorm2d(2 * ndf)
 
-        self.conv3  = nn.Conv2d(2 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
-        self.bn3    = nn.BatchNorm2d(4 * ndf)
+        # self.conv3  = nn.Conv2d(2 * ndf, 4 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        # self.bn3    = nn.BatchNorm2d(4 * ndf)
 
-        self.conv4  = nn.Conv2d(4 * ndf, 8 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
-        self.bn4    = nn.BatchNorm2d(8 * ndf)
+        # self.conv4  = nn.Conv2d(4 * ndf, 8 * ndf, kernel_size = kernel_size, stride = stride, padding= padding, bias = False)
+        # self.bn4    = nn.BatchNorm2d(8 * ndf)
 
-        self.final_img_size = self.img_size // 16
-        self.fc             = nn.Linear(8 * ndf * self.final_img_size**2, 2 * self.z_dim)
-        self.bn5            = nn.BatchNorm1d(2 * self.z_dim)
+        # self.final_img_size = self.img_size // 16
+        # self.fc             = nn.Linear(8 * ndf * self.final_img_size**2, 2 * self.z_dim)
+        # self.bn5            = nn.BatchNorm1d(2 * self.z_dim)
 
     def forward(self, x):
-        h1 = F.leaky_relu(self.bn1(self.conv1(x)),  negative_slope=0.2)
-        h2 = F.leaky_relu(self.bn2(self.conv2(h1)), negative_slope=0.2)
-        h3 = F.leaky_relu(self.bn3(self.conv3(h2)), negative_slope=0.2)
-        h4 = F.leaky_relu(self.bn4(self.conv4(h3)), negative_slope=0.2)
+        # h1 = F.leaky_relu(self.bn1(self.conv1(x)),  negative_slope=0.2)
+        # h2 = F.leaky_relu(self.bn2(self.conv2(h1)), negative_slope=0.2)
+        # h3 = F.leaky_relu(self.bn3(self.conv3(h2)), negative_slope=0.2)
+        # h4 = F.leaky_relu(self.bn4(self.conv4(h3)), negative_slope=0.2)
 
-        zfeatures = self.bn5(self.fc(h4.view(-1, 8 * self.ndf * self.final_img_size**2)))
-        z_loc     = zfeatures[:, :self.z_dim]
-        z_scale   = zfeatures[:, self.z_dim:]
+        # zfeatures = self.bn5(self.fc(h4.view(-1, 8 * self.ndf * self.final_img_size**2)))
+        # z_loc     = zfeatures[:, :self.z_dim]
+        # z_scale   = zfeatures[:, self.z_dim:]
 
-        # features = self.model(x)
-        # z_loc    = features[:, :self.z_dim].squeeze()
-        # z_scale  = features[:, self.z_dim:].squeeze()
+        features = self.model(x)
+        z_loc    = features[:, :self.z_dim].squeeze()
+        z_scale  = features[:, self.z_dim:].squeeze()
 
         return z_loc, torch.exp(z_scale) + 1e-6
 
@@ -111,17 +111,28 @@ class VAE(nn.Module):
     def __init__(self, n_channel, img_size = 64, z_dim=128, use_cuda=False, conf = dict()):
         assert(not (img_size & (img_size-1)))
         super(VAE, self).__init__()
-        self.img_size = img_size
-        self.use_cuda = use_cuda
-        self.z_dim    = z_dim
-        self.encoder  = Encoder(n_channel, img_size, z_dim)
-        self.decoder  = Decoder(n_channel, img_size, z_dim)
+        self.n_channel = n_channel
+        self.img_size  = img_size
+        self.use_cuda  = use_cuda
+        self.z_dim     = z_dim
+        self.encoder   = Encoder(n_channel, img_size, z_dim)
+        self.decoder   = Decoder(n_channel, img_size, z_dim)
         if use_cuda:
             self.cuda()
         self.noise_level = conf.get('noise_level',0.01)
         self.lr          = conf.get('lr', 3e-4)
         self.kl_factor   = conf.get('kl_factor', 1.0)
+        self.norm_mean   = torch.as_tensor(conf.get('norm_mean', [0.485, 0.456, 0.406]))
+        self.norm_std    = torch.as_tensor(conf.get('norm_std',  [0.229, 0.224, 0.225]))
+        assert(len(self.norm_mean) == self.n_channel)
+        assert(len(self.norm_std)  == self.n_channel)
     
+    def unnormalize(self, batch):
+        """
+        batch: b * n_channel * w * h
+        """
+        return batch * self.norm_std.view(1, self.n_channel, 1, 1) + self.norm_mean.view(1, self.n_channel, 1, 1)
+
     def forward(self, img):
         if self.use_cuda:
             img = img.cuda()
@@ -134,7 +145,7 @@ class VAE(nn.Module):
         # noise_level = self.noise_level * torch.ones(1).to(z_loc.device)
         # rec_loss    = 0.5 * torch.pow((img_loc - true_img) / noise_level, 2) + 0.5 * torch.log(2 * np.pi * noise_level**2)
         # rec_loss    = 0.5 * (img_loc - true_img)**2
-        rec_loss    = nn.BCELoss(reduction = 'none')(0.5 + 0.5 * img_loc,0.5 + 0.5 * true_img)
+        rec_loss    = nn.BCELoss(reduction = 'none')(self.unnormalize(img_loc), self.unnormalize(true_img))
         kl_div      = kl_divergence(Normal(z_loc, z_scale), Normal(z_loc.new_zeros(1), z_scale.new_ones(1)))
         return rec_loss.sum(), kl_div.sum()
 

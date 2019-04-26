@@ -10,23 +10,26 @@ from torchvision.utils import make_grid,save_image
 import numpy as np
 from   tqdm import tqdm,trange
 
-# Trained with 4000 hentai images from https://github.com/alexkimxyz/nsfw_data_scraper
-
 img_size    = 64
-batch_size  = 16
+batch_size  = 8
 use_cuda    = False
-num_epochs  = 100
-z_dim       = 64
-lr          = 1e-4
-noise_level = 1e-3
-transf      = transforms.Compose([
-    # transforms.RandomHorizontalFlip(),
+num_epochs  = 1
+z_dim       = 32
+lr          = 5e-5
+noise_level = 3e-2
+kl_factor   = 1.
+
+mean      = [0.485, 0.456, 0.406] # imagenet normalization
+std       = [0.229, 0.224, 0.225]
+normalize = transforms.Normalize(mean, std)
+transf    = transforms.Compose([
     transforms.Resize((img_size,img_size)), 
     transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    normalize
 ])
+images = datasets.ImageFolder('./data/Hentai/', transform=transf)
 
-images                    = datasets.ImageFolder('./data/MissCheng/', transform=transf)
+
 len_train                 = int(0.95 * len(images))
 len_validate              = len(images) - len_train
 train_imgs, validate_imgs = torch.utils.data.random_split(images, [len_train, len_validate])
@@ -35,6 +38,9 @@ validate_loader           = torch.utils.data.DataLoader(dataset = validate_imgs,
 conf                      = dict()
 conf['noise_level']       = noise_level
 conf['lr']                = lr
+conf['kl_factor']         = kl_factor
+conf['norm_mean']         = mean
+conf['norm_std']          = std
 vae                       = VAE(n_channel=3,img_size=img_size,z_dim = z_dim, use_cuda = use_cuda, conf = conf)
 tbar                      = tqdm(range(num_epochs))
 fid                       = open('losses', 'w')
@@ -47,11 +53,11 @@ for epoch in tbar:
     bx_valid,_ = iter(validate_loader).next()
     bx_train   = bx_train[:8]
     bx_valid   = bx_valid[:8]
-    rand_samp  = 0.5 + 0.5 * vae.random_sample(num_samples = 8)
-    rec_train  = 0.5 + 0.5 * vae.reconstruct_img(bx_train)
-    rec_valid  = 0.5 + 0.5 * vae.reconstruct_img(bx_valid)
-    bx_train   = 0.5 + 0.5 * bx_train
-    bx_valid   = 0.5 + 0.5 * bx_valid
+    rand_samp  = vae.unnormalize(vae.random_sample(num_samples = 8))
+    rec_train  = vae.unnormalize(vae.reconstruct_img(bx_train))
+    rec_valid  = vae.unnormalize(vae.reconstruct_img(bx_valid))
+    bx_train   = vae.unnormalize(bx_train)
+    bx_valid   = vae.unnormalize(bx_valid)
     show_imgs  = make_grid(torch.cat((rand_samp, bx_train, rec_train, bx_valid, rec_valid), dim = 0), nrow=8)
     save_image(show_imgs,'img_%d.png' % epoch)
     vae.train()

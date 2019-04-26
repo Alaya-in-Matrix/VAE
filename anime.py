@@ -20,14 +20,17 @@ z_dim       = 512
 lr          = 3e-4
 noise_level = 1e-3
 kl_factor   = 1.
-transf      = transforms.Compose([
-    transforms.RandomHorizontalFlip(),
+
+mean      = [0.485, 0.456, 0.406] # imagenet normalization
+std       = [0.229, 0.224, 0.225]
+normalize = transforms.Normalize(mean, std)
+transf    = transforms.Compose([
     transforms.Resize((img_size,img_size)), 
     transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    normalize
 ])
+images = datasets.ImageFolder('./data/Anime/', transform=transf)
 
-images                    = datasets.ImageFolder('./data/animeface-character-dataset/thumb', transform=transf)
 len_train                 = int(0.95 * len(images))
 len_validate              = len(images) - len_train
 train_imgs, validate_imgs = torch.utils.data.random_split(images, [len_train, len_validate])
@@ -37,6 +40,8 @@ conf                      = dict()
 conf['noise_level']       = noise_level
 conf['lr']                = lr
 conf['kl_factor']         = kl_factor
+conf['norm_mean']         = mean
+conf['norm_std']          = std
 vae                       = VAE(n_channel=3,img_size=img_size,z_dim = z_dim, use_cuda = use_cuda, conf = conf)
 tbar                      = tqdm(range(num_epochs))
 fid                       = open('losses', 'w')
@@ -49,11 +54,11 @@ for epoch in tbar:
     bx_valid,_ = iter(validate_loader).next()
     bx_train   = bx_train[:8]
     bx_valid   = bx_valid[:8]
-    rand_samp  = 0.5 + 0.5 * vae.random_sample(num_samples = 8)
-    rec_train  = 0.5 + 0.5 * vae.reconstruct_img(bx_train)
-    rec_valid  = 0.5 + 0.5 * vae.reconstruct_img(bx_valid)
-    bx_train   = 0.5 + 0.5 * bx_train
-    bx_valid   = 0.5 + 0.5 * bx_valid
+    rand_samp  = vae.unnormalize(vae.random_sample(num_samples = 8))
+    rec_train  = vae.unnormalize(vae.reconstruct_img(bx_train))
+    rec_valid  = vae.unnormalize(vae.reconstruct_img(bx_valid))
+    bx_train   = vae.unnormalize(bx_train)
+    bx_valid   = vae.unnormalize(bx_valid)
     show_imgs  = make_grid(torch.cat((rand_samp, bx_train, rec_train, bx_valid, rec_valid), dim = 0), nrow=8)
     save_image(show_imgs,'img_%d.png' % epoch)
     vae.train()
