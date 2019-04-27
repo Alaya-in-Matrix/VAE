@@ -9,20 +9,23 @@ import torchvision.transforms as transforms
 from torchvision.utils import make_grid,save_image
 import numpy as np
 from   tqdm import tqdm,trange
+from   torchsummary import summary
 
 # Trained with 4000 hentai images from https://github.com/alexkimxyz/nsfw_data_scraper
 
 img_size    = 64
 batch_size  = 64
 use_cuda    = True
-num_epochs  = 1000
-z_dim       = 512
-lr          = 5e-5
-noise_level = 3e-2
+num_epochs  = 500
+z_dim       = 128
+lr          = 1e-4
+noise_level = 3e-3
 kl_factor   = 1.
 
 mean      = [0.485, 0.456, 0.406] # imagenet normalization
 std       = [0.229, 0.224, 0.225]
+# mean      = [0.5, 0.5, 0.5] # imagenet normalization
+# std       = [0.5, 0.5, 0.5]
 normalize = transforms.Normalize(mean, std)
 transf    = transforms.Compose([
     transforms.Resize((img_size,img_size)), 
@@ -43,6 +46,7 @@ conf['kl_factor']         = kl_factor
 conf['norm_mean']         = mean
 conf['norm_std']          = std
 vae                       = VAE(n_channel=3,img_size=img_size,z_dim = z_dim, use_cuda = use_cuda, conf = conf)
+summary(vae,input_size = (3,64,64),batch_size = batch_size)
 tbar                      = tqdm(range(num_epochs))
 fid                       = open('losses', 'w')
 for epoch in tbar:
@@ -54,9 +58,9 @@ for epoch in tbar:
     bx_valid,_ = iter(validate_loader).next()
     bx_train   = bx_train[:8]
     bx_valid   = bx_valid[:8]
-    rand_samp  = vae.unnormalize(vae.random_sample(num_samples = 8))
-    rec_train  = vae.unnormalize(vae.reconstruct_img(bx_train))
-    rec_valid  = vae.unnormalize(vae.reconstruct_img(bx_valid))
+    rand_samp  = vae.random_sample(num_samples = 8)
+    rec_train  = vae.reconstruct_img(bx_train)
+    rec_valid  = vae.reconstruct_img(bx_valid)
     bx_train   = vae.unnormalize(bx_train)
     bx_valid   = vae.unnormalize(bx_valid)
     show_imgs  = make_grid(torch.cat((rand_samp, bx_train, rec_train, bx_valid, rec_valid), dim = 0), nrow=8)

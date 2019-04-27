@@ -68,7 +68,7 @@ class Decoder(nn.Module):
         self.n_channel = n_channel
         self.z_dim     = z_dim
 
-        ndf         = 32# number of filters
+        ndf         = 64# number of filters
         kernel_size = 4
         stride      = 2
         padding     = 1
@@ -100,7 +100,7 @@ class Decoder(nn.Module):
         h4        = F.relu(self.bn4(self.deconv4(h3)))
 
         h5_1      = self.deconv5_1(h4)
-        rec_img   = torch.tanh(h5_1)
+        rec_img   = torch.sigmoid(h5_1)
 
         # h5_2      = self.deconv5_1(h4)
         # noise_var = torch.exp(h5_2)
@@ -124,6 +124,9 @@ class VAE(nn.Module):
         self.kl_factor   = conf.get('kl_factor', 1.0)
         self.norm_mean   = torch.as_tensor(conf.get('norm_mean', [0.485, 0.456, 0.406]))
         self.norm_std    = torch.as_tensor(conf.get('norm_std',  [0.229, 0.224, 0.225]))
+        if use_cuda:
+            self.norm_mean   = self.norm_mean.cuda()
+            self.norm_std    = self.norm_std.cuda()
         assert(len(self.norm_mean) == self.n_channel)
         assert(len(self.norm_std)  == self.n_channel)
     
@@ -131,7 +134,7 @@ class VAE(nn.Module):
         """
         batch: b * n_channel * w * h
         """
-        return batch * self.norm_std.view(1, self.n_channel, 1, 1) + self.norm_mean.view(1, self.n_channel, 1, 1)
+        return batch * self.norm_std.view(1, self.n_channel, 1, 1).to(batch.device) + self.norm_mean.view(1, self.n_channel, 1, 1).to(batch.device)
 
     def forward(self, img):
         if self.use_cuda:
@@ -145,7 +148,7 @@ class VAE(nn.Module):
         # noise_level = self.noise_level * torch.ones(1).to(z_loc.device)
         # rec_loss    = 0.5 * torch.pow((img_loc - true_img) / noise_level, 2) + 0.5 * torch.log(2 * np.pi * noise_level**2)
         # rec_loss    = 0.5 * (img_loc - true_img)**2
-        rec_loss    = nn.BCELoss(reduction = 'none')(self.unnormalize(img_loc), self.unnormalize(true_img))
+        rec_loss    = nn.BCELoss(reduction = 'none')(img_loc, self.unnormalize(true_img))
         kl_div      = kl_divergence(Normal(z_loc, z_scale), Normal(z_loc.new_zeros(1), z_scale.new_ones(1)))
         return rec_loss.sum(), kl_div.sum()
 
