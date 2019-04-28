@@ -10,8 +10,8 @@ from torchvision.utils import make_grid,save_image
 import numpy as np
 from   tqdm import tqdm,trange
 
-img_size    = 128
-batch_size  = 128
+img_size    = 64
+batch_size  = 64
 use_cuda    = True
 num_epochs  = 50
 z_dim       = 512
@@ -52,9 +52,9 @@ for epoch in tbar:
     bx_valid,_ = iter(validate_loader).next()
     bx_train   = bx_train[:8]
     bx_valid   = bx_valid[:8]
-    rand_samp  = vae.unnormalize(vae.random_sample(num_samples = 8))
-    rec_train  = vae.unnormalize(vae.reconstruct_img(bx_train))
-    rec_valid  = vae.unnormalize(vae.reconstruct_img(bx_valid))
+    rand_samp  = vae.random_sample(num_samples = 8)
+    rec_train  = vae.reconstruct_img(bx_train)
+    rec_valid  = vae.reconstruct_img(bx_valid)
     bx_train   = vae.unnormalize(bx_train)
     bx_valid   = vae.unnormalize(bx_valid)
     show_imgs  = make_grid(torch.cat((rand_samp, bx_train, rec_train, bx_valid, rec_valid), dim = 0), nrow=8)
