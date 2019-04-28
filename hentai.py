@@ -16,9 +16,9 @@ from   torchsummary import summary
 img_size    = 64
 batch_size  = 64
 use_cuda    = True
-num_epochs  = 500
+num_epochs  = 300
 z_dim       = 128
-lr          = 1e-4
+lr          = 3e-4
 noise_level = 3e-3
 kl_factor   = 1.
 

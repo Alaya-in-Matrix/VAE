@@ -20,8 +20,7 @@ class Encoder(nn.Module):
         # Directly use resnet18 as feature extractor
         self.model    = vision.models.resnet18(pretrained=True)
         self.model.fc = nn.Sequential(
-            nn.Linear(512, self.z_dim * 2),
-            nn.BatchNorm1d(self.z_dim * 2))
+            nn.Linear(512, self.z_dim * 2))
         
         # ndf         = 32 # number of filters
         # kernel_size = 4

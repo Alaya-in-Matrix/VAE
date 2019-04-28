@@ -15,7 +15,7 @@ batch_size  = 64
 use_cuda    = True
 num_epochs  = 50
 z_dim       = 512
-lr          = 1e-4
+lr          = 3e-4
 noise_level = 1e-3
 kl_factor   = 1.
 
